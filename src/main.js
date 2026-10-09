@@ -32,7 +32,7 @@ const S = {
   mode: 'home', view: 'todo', depth: 0.2, mdepth: 0, art: true, ven: true, names: false, sel: null,
   hasPhoto: false, hasMask: false, mirror: false, img: { w: 1, h: 1 }, zoom: 1, panX: 0, panY: 0,
   yaw: 0.42, pitch: 0, dzoom: 1, dpanX: 0, dpanY: 0, spin: false, anim: false,
-  frames: null, boneVis: null, dirty: true, facing: 'environment', detected: false,
+  frames: null, boneVis: null, dirty: true, facing: 'environment', detected: false, iso: null,
 };
 
 // ---------------------------------------------------------------- motor 3D
@@ -50,7 +50,110 @@ let maskMode = null;
 const REV = new Map(); // id -> [{e, key}] estructuras que enlazan a id
 for (const e of ATLAS) for (const key of ['n', 'a', 'v']) for (const t of e[key] || []) { if (!REV.has(t)) REV.set(t, []); REV.get(t).push({ e, key }); }
 const LAYER_OF = new Map(); // sid -> capa en el modelo
+const LAYERS_OF = new Map(); // sid -> todas las capas donde aparece
 let ANCH = new Map();
+
+// ---------------------------------------------------------------- territorios (irrigación e inervación sobre el cuerpo)
+// Al elegir un nervio se ve lo que inerva; una arteria, lo que irriga; una vena, lo que drena.
+// Al elegir un músculo u órgano se ven sus nervios, arterias y venas.
+const TINT = { n: 1, a: 2, v: 3 };
+const TERRITORY_CATS = ['musculo', 'tendon', 'organo', 'snc', 'piel'];
+function territoryOf(e) {
+  const set = new Map();
+  let kind;
+  if (e.cat === 'nervio' || e.cat === 'arteria' || e.cat === 'vena') {
+    kind = { nervio: 'n', arteria: 'a', vena: 'v' }[e.cat];
+    for (const x of REV.get(e.id) || []) if (x.key === kind && TERRITORY_CATS.includes(x.e.cat) && LAYERS_OF.has(x.e.sid)) set.set(x.e.sid, TINT[kind]);
+  } else {
+    kind = 'm';
+    for (const key of ['n', 'a', 'v']) for (const id of e[key] || []) { const s = SID[id]; if (s && LAYERS_OF.has(s)) set.set(s, TINT[key]); }
+  }
+  if (!set.size) return null;
+  set.set(e.sid, 0);
+  return { owner: e.sid, kind, set };
+}
+const ISO_TEXT = {
+  n: ['Ver en el cuerpo lo que inerva', 'Músculos y órganos que inerva'],
+  a: ['Ver en el cuerpo lo que irriga', 'Músculos y órganos que irriga'],
+  v: ['Ver en el cuerpo lo que drena', 'Músculos y órganos que drena'],
+  m: ['Ver sus nervios y vasos en el cuerpo', ''],
+};
+function applyState() {
+  const sel = S.sel ? S.sel.sid : 0, iso = S.iso;
+  view.setStructureState((e) => {
+    const s = { hi: e.sid === sel };
+    if (iso) {
+      const t = iso.set.get(e.sid);
+      if (t === undefined) { if (e.cat !== 'hueso' && e.cat !== 'cartilago') s.hidden = true; } else s.tint = t;
+    }
+    return s;
+  });
+  view.shared.uniforms.uFocus.value = sel ? (iso ? 0.3 : 0.5) : 0;
+}
+function setIso(info) {
+  const was = S.iso;
+  S.iso = info;
+  if (info && !was) S.isoSaved = { zoom: S.zoom, panX: S.panX, panY: S.panY, dzoom: S.dzoom, dpanX: S.dpanX, dpanY: S.dpanY, pitch: S.pitch };
+  if (!info && was) restoreFraming();
+  applyState(); applyLayers();
+  if (S.sel) showCard(BY_SID[S.sel.sid]);
+  if (info) S.frameIso = 2; // encuadrar el territorio en cuanto haya un cuadro dibujado
+  needLabels = true; S.dirty = true;
+}
+function restoreFraming() {
+  const s = S.isoSaved; S.isoSaved = null; S.frameIso = 0;
+  if (!s) return;
+  if (S.mode === 'demo') animateTo({ dzoom: s.dzoom, dpanX: s.dpanX, dpanY: s.dpanY });
+  else if (S.mode === 'photo') animateTo({ zoom: s.zoom, panX: s.panX, panY: s.panY });
+}
+// Acerca la vista para que el territorio llene el espacio libre sobre la ficha
+function frameTerritory() {
+  if (!S.iso || (S.mode !== 'demo' && S.mode !== 'photo')) return;
+  const pb = view.pickAll(0.25); if (!pb) return;
+  const { buf, W, H, scale } = pb;
+  let x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9, n = 0;
+  for (let y = 0, o = 0; y < H; y++) for (let x = 0; x < W; x++, o += 4) {
+    if (!buf[o + 2]) continue;
+    if (!S.iso.set.has((buf[o] | (buf[o + 1] << 8)) >> 1)) continue;
+    const sy = H - 1 - y; n++;
+    if (x < x0) x0 = x; if (x > x1) x1 = x; if (sy < y0) y0 = sy; if (sy > y1) y1 = sy;
+  }
+  if (n < 3) return;
+  const bx0 = x0 / scale, bx1 = (x1 + 1) / scale, by0 = y0 / scale, by1 = (y1 + 1) / scale;
+  const bcx = (bx0 + bx1) / 2, bcy = (by0 + by1) / 2, bw = Math.max(bx1 - bx0, 30), bh = Math.max(by1 - by0, 30);
+  const cw = innerWidth, ch = innerHeight, fin = insets(), cur = S.ins || fin;
+  const aw = cw - (fin.right || 0), ah = Math.max(80, ch - fin.top - fin.bottom);
+  const acx = aw / 2, acy = fin.top + ah / 2;
+  let f = Math.min((aw * 0.84) / bw, (ah * 0.84) / bh);
+  if (S.mode === 'demo') {
+    const ahCur = Math.max(80, ch - cur.top - cur.bottom);
+    const dz = clamp((S.dzoom * f * ahCur) / ah, 0.6, 6);
+    f = (dz * ah) / (S.dzoom * ahCur);
+    const cx = (cw - (cur.right || 0)) / 2 + S.dpanX, cy = ch / 2 + (cur.top - cur.bottom) / 2 + S.dpanY;
+    const ncx = acx + (cx - bcx) * f, ncy = acy + (cy - bcy) * f;
+    animateTo({ dzoom: dz, dpanX: ncx - aw / 2, dpanY: ncy - ch / 2 - (fin.top - fin.bottom) / 2 });
+  } else {
+    const v = view.view, sc = S.scale || 1;
+    const ix = v.x0 + bcx / sc, iy = v.y0 + bcy / sc, iw = bw / sc, ih = bh / sc;
+    const base = Math.min(aw / S.img.w, ah / S.img.h);
+    const zoom = clamp(Math.min((aw * 0.84) / iw, (ah * 0.84) / ih) / base, 1, 6);
+    animateTo({ zoom, panX: ix - S.img.w / 2, panY: iy - S.img.h / 2 });
+  }
+}
+// Transición suave de encuadre
+let tween = null;
+function animateTo(target, ms = 420) {
+  const from = {}; for (const k in target) from[k] = S[k];
+  tween = { from, target, t0: performance.now(), ms };
+  S.dirty = true;
+}
+function stepTween(t) {
+  if (!tween) return;
+  const u = clamp((t - tween.t0) / tween.ms, 0, 1), e = u * u * (3 - 2 * u);
+  for (const k in tween.target) S[k] = tween.from[k] + (tween.target[k] - tween.from[k]) * e;
+  S.dirty = true;
+  if (u >= 1) { tween = null; needLabels = true; }
+}
 
 // ---------------------------------------------------------------- utilidades de interfaz
 const toastEl = $('#toast'); let toastT = 0;
@@ -75,6 +178,15 @@ function layerPlan() {
   const d = S.depth, L = {};
   for (const k of ['skin', 'shell', 'musSup', 'musDeep', 'bone', 'organ', 'cns', 'art', 'ven', 'nerve']) L[k] = [0, 0];
   const photo = S.hasPhoto;
+  if (S.iso) {
+    // solo el territorio, con el esqueleto translúcido como referencia
+    for (const sid of S.iso.set.keys()) for (const l of LAYERS_OF.get(sid) || []) L[l] = [1, 0];
+    // músculos y órganos algo translúcidos para ver el nervio o el vaso que corre por dentro
+    for (const l of ['musSup', 'musDeep', 'organ', 'cns']) if (L[l][0] > 0) L[l] = [0.74, 0];
+    if (L.bone[0] < 1) L.bone = [photo ? 0.3 : 0.4, 1];
+    L.shell = [0, 0]; L.skin = [0, 0];
+    return L;
+  }
   switch (S.view) {
     case 'todo': {
       // sin foto: la piel es un contorno translúcido que se desvanece al entrar
@@ -108,8 +220,8 @@ function layerPlan() {
 function applyLayers() {
   const L = layerPlan();
   for (const k in view.layers) { const [o, g] = L[k] || [0, 0]; view.setLayer(k, o, g); }
-  const dark = S.view === 'todo' ? 0.9 * smooth(0, 0.1, S.depth) : 0.9;
-  view.setComposite({ uDark: S.hasPhoto ? dark : 0, uClip: S.hasPhoto && S.hasMask ? 1 : 0, uFatRim: S.hasPhoto && S.hasMask && S.view === 'todo' ? 0.55 * smooth(0.02, 0.12, S.depth) * (1 - smooth(0.5, 0.8, S.depth)) : 0 });
+  const dark = S.view === 'todo' && !S.iso ? 0.9 * smooth(0, 0.1, S.depth) : 0.9;
+  view.setComposite({ uDark: S.hasPhoto ? dark : 0, uClip: S.hasPhoto && S.hasMask ? 1 : 0, uFatRim: S.hasPhoto && S.hasMask && S.view === 'todo' && !S.iso ? 0.55 * smooth(0.02, 0.12, S.depth) * (1 - smooth(0.5, 0.8, S.depth)) : 0 });
   S.dirty = true;
 }
 function layerShown(layer) { const L = view.layers[layer]; return L && L.opacity >= 0.35 && L.ghost < 0.5; }
@@ -171,6 +283,7 @@ function frame(t) {
   const dt = Math.min(0.1, (t - lastT) / 1000); lastT = t;
   if (S.mode === 'home') { if (t - lastHome < 33) return; lastHome = t; }
   smoothInsets();
+  stepTween(t);
   if (S.mode === 'home' || S.mode === 'demo') {
     if (S.mode === 'home' || S.spin) { S.yaw += dt * (S.mode === 'home' ? 0.35 : 0.45); S.dirty = true; }
     if (S.anim) S.dirty = true;
@@ -187,6 +300,7 @@ function frame(t) {
   fitView();
   view.hide3D = !S.frames && S.mode !== 'home' && S.mode !== 'demo';
   view.render();
+  if (S.frameIso && !tween && (S.frames || S.mode === 'demo')) { if (--S.frameIso === 0) frameTerritory(); else S.dirty = true; }
   if (moved) needLabels = true;
   const live = S.mode === 'live' || S.mode === 'video' || S.spin || S.anim;
   if (needLabels && (!live || t - lastLabelsT > 450) && !gest) { needLabels = false; lastLabelsT = t; queueLabels(); }
@@ -199,7 +313,8 @@ const labelsEl = $('#labels');
 const NO_LABEL = new Set(['tejido_profundo', 'piel'].map((id) => SID[id]).filter(Boolean));
 function updateLabels() {
   labelsEl.textContent = '';
-  if (S.mode === 'home' || (!S.names && !S.sel) || (!S.frames && S.mode !== 'demo')) return;
+  const names = S.names || !!S.iso;
+  if (S.mode === 'home' || (!names && !S.sel) || (!S.frames && S.mode !== 'demo')) return;
   const pb = view.pickAll(0.3);
   if (!pb) return;
   const { buf, W, H, scale } = pb;
@@ -251,7 +366,7 @@ function updateLabels() {
       if (q) put({ sid: S.sel.sid, side: S.sel.side, x: S.mirror ? cw - q.x : q.x, y: q.y }, true);
     }
   }
-  if (!S.names) return;
+  if (!names) return;
   const seen = new Set(S.sel ? [S.sel.sid] : []);
   items.sort((a, b) => b.n - a.n);
   let count = 0;
@@ -278,8 +393,9 @@ function keepInView(it) {
 const card = $('#card');
 function select(sid, side = 0, o = {}) {
   S.sel = sid ? { sid, side } : null; S.keptSel = null;
-  view.setStructureState((e) => ({ hi: e.sid === sid }));
-  view.shared.uniforms.uFocus.value = sid ? 0.5 : 0;
+  // dentro de un territorio se puede tocar lo que está a la vista sin salir de él
+  if (S.iso && !(sid && S.iso.set.has(sid))) { S.iso = null; restoreFraming(); applyLayers(); }
+  applyState();
   if (sid) {
     const e = BY_SID[sid];
     if (o.reveal) reveal(e);
@@ -317,6 +433,29 @@ function showCard(e) {
   $('h2', card).textContent = e.name;
   const body = $('.sheet-body', card); body.textContent = ''; body.scrollTop = 0;
   const p = document.createElement('p'); p.className = 'desc'; p.textContent = e.desc; body.append(p);
+  // botón de territorio: lo que inerva, irriga o drena (o sus nervios y vasos)
+  const ter = territoryOf(e);
+  const on = S.iso && S.iso.owner === e.sid;
+  if (ter || on) {
+    const k = (on ? S.iso : ter).kind;
+    const b = document.createElement('button'); b.className = 'iso-btn ' + k + (on ? ' on' : '');
+    b.innerHTML = '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3.2"/><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5.3 5.3l2.1 2.1M16.6 16.6l2.1 2.1M5.3 18.7l2.1-2.1M16.6 7.4l2.1-2.1"/></svg>';
+    b.append(on ? 'Volver a la vista completa' : ISO_TEXT[k][0]);
+    b.onclick = (ev) => { ev.stopPropagation(); setIso(on ? null : ter); };
+    body.append(b);
+    if (on) {
+      const lg = document.createElement('div'); lg.className = 'iso-legend';
+      const item = (c, t) => { const s = document.createElement('span'); const i = document.createElement('i'); i.style.background = c; s.append(i, t); lg.append(s); };
+      if (k === 'm') { const ks = new Set([...S.iso.set.values()]); if (ks.has(1)) item('#f2c94c', 'Nervios'); if (ks.has(2)) item('#ef4b4f', 'Arterias'); if (ks.has(3)) item('#5b8ce8', 'Venas'); }
+      else item({ n: '#f2c94c', a: '#ef4b4f', v: '#5b8ce8' }[k], ISO_TEXT[k][1] + ' (' + (S.iso.set.size - 1) + ')');
+      body.append(lg);
+    }
+  } else if (S.iso && S.iso.owner !== e.sid) {
+    const b = document.createElement('button'); b.className = 'iso-btn on';
+    b.append('Volver a la vista completa');
+    b.onclick = (ev) => { ev.stopPropagation(); setIso(null); };
+    body.append(b);
+  }
   const dl = document.createElement('dl'); dl.className = 'fields';
   const inline = { inerv: 'n', irrig: 'a', drenaje: 'v' };
   const used = new Set();
@@ -370,6 +509,7 @@ function buildViews() {
 }
 function setView(id, keepSel = false) {
   S.view = id;
+  if (S.iso) { S.iso = null; restoreFraming(); applyState(); if (S.sel) showCard(BY_SID[S.sel.sid]); }
   for (const b of viewsEl.children) b.setAttribute('aria-selected', b.dataset.v === id ? 'true' : 'false');
   const sel = viewsEl.querySelector('[aria-selected="true"]'); sel?.scrollIntoView({ inline: 'center', block: 'nearest', behavior: 'smooth' });
   const depthBox = $('#depthBox'), slider = $('#depth');
@@ -399,6 +539,7 @@ const ptrs = new Map(); let gest = null;
 const snap = () => ({ zoom: S.zoom, panX: S.panX, panY: S.panY, yaw: S.yaw, pitch: S.pitch, dzoom: S.dzoom, dpanX: S.dpanX, dpanY: S.dpanY });
 canvas.addEventListener('pointerdown', (ev) => {
   if (S.mode === 'home') return;
+  tween = null; S.frameIso = 0;
   canvas.setPointerCapture(ev.pointerId);
   ptrs.set(ev.pointerId, { x: ev.clientX, y: ev.clientY });
   if (ptrs.size === 1) gest = { kind: 'tap', x0: ev.clientX, y0: ev.clientY, t0: performance.now(), s: snap() };
@@ -463,7 +604,7 @@ function goHome() {
   canvas.style.transform = '';
   view.setPhoto(null); view.setMask(null);
   $('#viewer').hidden = true; $('#home').hidden = false;
-  S.view = 'todo'; S.depth = 0.2; S.yaw = 0.42; S.pitch = 0; S.dzoom = 1; S.dpanX = S.dpanY = 0;
+  S.view = 'todo'; S.depth = 0.2; S.yaw = 0.42; S.pitch = 0; S.dzoom = 1; S.dpanX = S.dpanY = 0; tween = null;
   applyLayers(); hint(null); labelsEl.textContent = '';
   history.replaceState(null, '', location.pathname);
 }
@@ -634,7 +775,7 @@ function startDemo() {
   stopMedia(); select(null);
   S.mirror = false; S.hasPhoto = false; S.hasMask = false; S.frames = null;
   view.setPhoto(null); view.setMask(null);
-  S.yaw = 0.42; S.pitch = 0; S.dzoom = 1; S.dpanX = S.dpanY = 0; S.spin = false;
+  S.yaw = 0.42; S.pitch = 0; S.dzoom = 1; S.dpanX = S.dpanY = 0; S.spin = false; tween = null;
   if (S.view === 'todo' && S.depth < 0.12) S.depth = 0.2;
   showViewer('demo');
   hint('Arrastra para girar · pellizca para acercar · toca para ver qué es', 5000);
@@ -739,7 +880,12 @@ async function boot() {
     return;
   }
   if (window.__MARY_ASSETS) { const dl = $('#dl'); if (dl) dl.parentNode.removeChild(dl); }
-  for (const a of view.anchors) { ANCH.set(a.sid * 2 + a.side, a); if (!LAYER_OF.has(a.sid)) LAYER_OF.set(a.sid, a.layer); }
+  for (const a of view.anchors) {
+    ANCH.set(a.sid * 2 + a.side, a);
+    if (!LAYER_OF.has(a.sid)) LAYER_OF.set(a.sid, a.layer);
+    if (!LAYERS_OF.has(a.sid)) LAYERS_OF.set(a.sid, new Set());
+    LAYERS_OF.get(a.sid).add(a.layer);
+  }
   buildViews();
   S.depth = 0.2; applyLayers();
   requestAnimationFrame(frame);
@@ -756,8 +902,9 @@ async function boot() {
     if (q.get('cy')) S.dpanY = +q.get('cy');
     if (q.get('nombres') === '1') { S.names = true; $('#btnNames').setAttribute('aria-pressed', 'true'); }
     if (q.get('sel') && SID[q.get('sel')]) select(SID[q.get('sel')], 0, { reveal: true });
+    if (q.get('iso') === '1' && S.sel) setIso(territoryOf(BY_SID[S.sel.sid]));
   }
-  window.__mary = { S, view, select, setView, startDemo, applyLayers, startPhoto, ready: true };
+  window.__mary = { S, view, select, setView, setIso, territoryOf, startDemo, applyLayers, startPhoto, ready: true };
   if ('serviceWorker' in navigator && location.protocol.startsWith('http') && !import.meta.env.DEV) navigator.serviceWorker.register('./sw.js').catch(() => {});
 }
 boot();

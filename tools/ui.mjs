@@ -7,7 +7,7 @@ const [, , base, prefix, ...steps] = process.argv;
 const browser = await chromium.launch({ args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist', '--use-fake-ui-for-media-stream', '--use-fake-device-for-media-stream'] });
 let W = 390, H = 844;
 const sz = steps.find((s) => s.startsWith('size:')); if (sz) [W, H] = sz.slice(5).split('x').map(Number);
-const ctx = await browser.newContext({ viewport: { width: W, height: H }, deviceScaleFactor: 2, isMobile: true, hasTouch: true });
+const ctx = await browser.newContext({ viewport: { width: W, height: H }, deviceScaleFactor: +(process.env.DSF || 2), isMobile: true, hasTouch: true });
 const page = await ctx.newPage();
 const errs = [];
 page.on('console', (m) => { if (m.type() === 'error' || (m.type() === 'warning' && !/Clock|GPU stall|swiftshader|WebGL/i.test(m.text()))) errs.push(m.type() + ': ' + m.text()); });

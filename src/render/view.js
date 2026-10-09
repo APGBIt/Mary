@@ -187,7 +187,8 @@ export class AnatomyView {
   // Estado por estructura: visible / resaltada / atenuada
   setStructureState(fn) {
     const { state } = this.shared;
-    for (const e of ATLAS) { const s = fn(e) || {}; state[e.sid * 4] = s.hi ? 255 : 0; state[e.sid * 4 + 1] = s.hidden ? 0 : 255; }
+    // r = resaltado, g = visible, b = tinte de territorio (0 ninguno, 1 nervio, 2 arteria, 3 vena)
+    for (const e of ATLAS) { const s = fn(e) || {}; state[e.sid * 4] = s.hi ? 255 : 0; state[e.sid * 4 + 1] = s.hidden ? 0 : 255; state[e.sid * 4 + 2] = (s.tint || 0) * 85; }
     this.shared.stateTex.needsUpdate = true;
   }
 

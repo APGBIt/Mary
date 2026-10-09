@@ -150,6 +150,11 @@ export function makeMaterial(kind, shared, opts = {}) {
           base = mix(base, vec3(0.17, 0.30, 0.40), step(0.6, vAux) * (1.0 - step(0.95, vAux)));
           base = mix(base, vec3(0.015), step(0.95, vAux));
         #endif
+        // territorio: lo que inerva un nervio (amarillo), irriga una arteria (rojo) o drena una vena (azul)
+        float tcode = floor(vState.b * 3.0 + 0.5);
+        float tw = step(0.5, tcode);
+        vec3 tcol = tcode < 1.5 ? vec3(1.0, 0.78, 0.2) : tcode < 2.5 ? vec3(1.0, 0.16, 0.2) : vec3(0.28, 0.5, 1.0);
+        base = mix(base, tcol, tw * ${kind === 'muscle' || kind === 'organ' || kind === 'cns' ? '0.5' : '0.2'});
         diffuseColor.rgb = base;`)
       .replace('#include <roughnessmap_fragment>', `#include <roughnessmap_fragment>
         #if KIND == 1
@@ -166,7 +171,8 @@ export function makeMaterial(kind, shared, opts = {}) {
       .replace('#include <opaque_fragment>', `
         float hi = vState.r;
         float fres = 1.0 - abs(normal.z);
-        outgoingLight *= mix(1.0, 0.42, uFocus * (1.0 - step(0.02, hi)));
+        outgoingLight *= mix(1.0, 0.42, uFocus * (1.0 - step(0.02, hi)) * (1.0 - tw));
+        outgoingLight += tcol * tw * (0.07 + 0.05 * sin(uTime * 3.0)) * (0.7 + 0.6 * fres);
         float dzz = clamp((uDepth.x - vViewZ) / uDepth.y, -1.0, 1.5);
         outgoingLight *= 1.0 - 0.5 * smoothstep(-0.2, 1.1, dzz);
         outgoingLight += uHiColor * hi * (0.32 + 0.18 * sin(uTime * 5.0)) * (0.6 + 0.8 * fres);

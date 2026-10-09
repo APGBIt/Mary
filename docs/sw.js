@@ -1,5 +1,5 @@
 // Mary funciona sin conexión después de la primera visita: guarda la app, el modelo y el detector.
-const V = 'mary-4.0.0';
+const V = 'mary-4.2.0';
 self.addEventListener('install', () => self.skipWaiting());
 self.addEventListener('activate', (e) => {
   e.waitUntil(caches.keys().then((ks) => Promise.all(ks.filter((k) => k !== V).map((k) => caches.delete(k)))).then(() => self.clients.claim()));

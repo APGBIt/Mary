@@ -34,7 +34,7 @@ for (const st of steps) {
   }
   else if (k === 'wait') await page.waitForTimeout(+arg);
   else if (k === 'eval') console.log('eval:', JSON.stringify(await page.evaluate(arg)));
-  else if (k === 'shot') { await page.waitForTimeout(250); await page.screenshot({ path: `${prefix}_${arg || n++}.png` }); }
+  else if (k === 'shot') { await page.waitForTimeout(250); await page.screenshot({ path: `${prefix}_${arg || n++}.png`, timeout: 180000 }); }
   else console.log('paso desconocido', st);
 }
 console.log(errs.length ? 'ERRORES:\n' + errs.slice(0, 20).join('\n') : 'sin errores');

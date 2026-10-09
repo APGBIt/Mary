@@ -65,9 +65,9 @@ export function makeMaterial(kind, shared, opts = {}) {
   const params = {
     muscle: { roughness: 0.42, clearcoat: 0.35, clearcoatRoughness: 0.35, sheen: 0.4, sheenRoughness: 0.5, sheenColor: new THREE.Color('#ff9a8a') },
     bone: { roughness: 0.62, clearcoat: 0.1, clearcoatRoughness: 0.6 },
-    organ: { roughness: 0.38, clearcoat: 0.55, clearcoatRoughness: 0.25 },
-    vessel: { roughness: 0.3, clearcoat: 0.7, clearcoatRoughness: 0.2 },
-    nerve: { roughness: 0.4, clearcoat: 0.35, clearcoatRoughness: 0.4, sheen: 0.5, sheenColor: new THREE.Color('#fff4b0') },
+    organ: { roughness: 0.5, clearcoat: 0.22, clearcoatRoughness: 0.4, envMapIntensity: 0.38 },
+    vessel: { roughness: 0.46, clearcoat: 0.12, clearcoatRoughness: 0.35, specularIntensity: 0.35, envMapIntensity: 0.3 },
+    nerve: { roughness: 0.48, clearcoat: 0.1, clearcoatRoughness: 0.4, specularIntensity: 0.4, envMapIntensity: 0.3, sheen: 0.35, sheenColor: new THREE.Color('#fff4b0') },
     cns: { roughness: 0.45, clearcoat: 0.45, clearcoatRoughness: 0.3 },
     skin: { roughness: 0.55, clearcoat: 0.15, clearcoatRoughness: 0.5, sheen: 0.6, sheenRoughness: 0.6, sheenColor: new THREE.Color('#ffd9c4') },
     shell: { roughness: 0.5, clearcoat: 0.2, clearcoatRoughness: 0.4 },
@@ -120,9 +120,10 @@ export function makeMaterial(kind, shared, opts = {}) {
           #else
             if (style > 0.5 && style < 1.5) return snoise(vObj * 2.2) * 0.35 + snoise(vObj * 7.0) * 0.15;   // pulmón
             if (style > 1.5 && style < 2.5) return snoise(vObj * 1.2) * 0.12 + snoise(vObj * 6.0) * 0.05;  // hígado, bazo
-            if (style > 2.5 && style < 3.5) return sin(vUvA.y * 6.2832 * 1.3) * 0.25 + snoise(vObj * 4.0) * 0.1; // intestino
+            if (style > 2.5 && style < 3.5) return sin(vUvA.y * 6.2832 * 1.3) * 0.12 + snoise(vObj * 4.0) * 0.06; // intestino
             if (style > 3.5 && style < 4.5) return snoise(vObj * 1.5) * 0.18 + snoise(vObj * 5.0) * 0.06; // corazón
             if (style > 4.5 && style < 5.5) { float r2 = 1.0 - abs(snoise(vObj * 0.85)); return r2 * r2 * 0.9; } // cerebro
+            if (style > 5.5 && style < 6.5) return sin(vUvA.y * 6.2832 * 4.5) * 0.4; // anillos de la tráquea
             return snoise(vObj * 2.0) * 0.18 + snoise(vObj * 6.0) * 0.06;
           #endif
         }`)
@@ -145,6 +146,9 @@ export function makeMaterial(kind, shared, opts = {}) {
         #elif KIND == 3
           if (style > 4.5 && style < 5.5) base *= 0.78 + 0.3 * hh;
           if (style > 0.5 && style < 1.5) base *= 0.85 + 0.25 * (snoise(vObj * 1.3) * 0.5 + 0.5);
+          if (style > 5.5 && style < 6.5) base *= 0.92 + 0.12 * hh;
+          base = mix(base, vec3(0.17, 0.30, 0.40), step(0.6, vAux) * (1.0 - step(0.95, vAux)));
+          base = mix(base, vec3(0.015), step(0.95, vAux));
         #endif
         diffuseColor.rgb = base;`)
       .replace('#include <roughnessmap_fragment>', `#include <roughnessmap_fragment>

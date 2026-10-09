@@ -106,3 +106,30 @@ export function onSkull(p, off = 0, center = HC) {
   return madd(q, n, off);
 }
 export { add, sub, mul, madd, dot, cross, len, norm, clamp, smooth, mix, sdSphere };
+
+// ---------------- Recorridos compartidos (órganos, vasos y nervios) ----------------
+// Aorta: raíz, ascendente, cayado, descendente torácica y abdominal (hasta la bifurcación en L4)
+export const AORTA_ASC = [[0.7, 37.6, 3.2], [-0.1, 39.6, 3.8], [-0.6, 41.8, 3.5], [-0.3, 43.8, 2.6]];
+export const AORTA_ARCH = [[-0.3, 43.8, 2.6], [0.5, 44.9, 1.5], [1.9, 45.1, 0.3], [2.8, 44.3, -1.6], [2.9, 42.6, -3.4]];
+export const AORTA_DESC = [[2.9, 42.6, -3.4], [2.6, 39.0, -4.3], [2.1, 35.0, -4.0], [1.6, 31.0, -3.3], [1.1, 27.6, -2.4], [0.7, 24.8, -1.5]];
+export const AORTA_ABD = [[0.7, 24.8, -1.5], [0.6, 22.0, -0.6], [0.6, 18.8, 0.2], [0.6, 15.8, 0.7], [0.5, 13.2, 0.9]];
+export const AORTA = [...AORTA_ASC, ...AORTA_ARCH.slice(1), ...AORTA_DESC.slice(1), ...AORTA_ABD.slice(1)];
+// Esófago (de C6 al cardias) y tráquea (del cricoides a la carina)
+export const ESOPH = [[0, 53.6, -0.6], [0, 50.0, -2.2], [0.2, 46.5, -3.3], [0.5, 43.0, -3.9], [0.6, 39.5, -3.3], [0.8, 35.5, -2.4], [1.6, 32.0, -1.4], [2.2, 29.6, -0.9], [3.1, 27.6, -0.4]];
+export const TRACHEA = [[0, 53.7, 1.45], [0, 50.0, 0.45], [0, 46.6, -0.6], [0.1, 42.3, -2.0]];
+// Venas cavas
+export const SVC = [[-2.9, 46.2, 2.2], [-3.0, 43.0, 2.0], [-2.8, 40.2, 1.9], [-2.5, 38.6, 1.9]];
+export const IVC = [[-2.1, 35.2, 1.2], [-2.3, 32.0, 0.4], [-2.5, 27.6, -1.0], [-2.1, 24.0, -1.3], [-2.0, 20.0, -0.8], [-1.9, 16.0, -0.3], [-1.3, 11.6, -0.1]];
+// Riñones: centro, eje largo (polo superior medial y posterior), dirección del hilio, semiejes
+export const KIDNEY = {
+  L: { c: [5.5, 20.4, -5.4], up: [-0.2, 1, -0.22], hil: [-0.72, 0, 0.69], r: [4.4, 2.6, 1.7] },
+  R: { c: [-5.3, 19.2, -5.4], up: [0.2, 1, -0.22], hil: [0.72, 0, 0.69], r: [4.3, 2.55, 1.7] },
+};
+export const tubeSDF = (x, y, z, P, R, k = 0.3) => {
+  let d = 1e9;
+  for (let i = 0; i < P.length - 1; i++) {
+    const di = sdRoundCone(x, y, z, P[i], P[i + 1], Array.isArray(R) ? R[i] : R, Array.isArray(R) ? R[i + 1] : R);
+    d = i ? smin(d, di, k) : di;
+  }
+  return d;
+};

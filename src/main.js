@@ -77,12 +77,13 @@ function layerPlan() {
   const photo = S.hasPhoto;
   switch (S.view) {
     case 'todo': {
-      if (!photo) L.skin = [1 - smooth(0.02, 0.15, d), 0];
-      const out = 1 - smooth(0.64, 0.8, d);
-      L.musSup = [smooth(0, 0.08, d) * (1 - 0.68 * smooth(0.26, 0.42, d)) * out, smooth(0.26, 0.42, d)];
-      L.shell = [smooth(0, 0.08, d) * (1 - smooth(0.2, 0.34, d)), 0];
+      // sin foto: la piel es un contorno translúcido que se desvanece al entrar
+      if (!photo) L.skin = [0.6 * (1 - smooth(0.04, 0.18, d)), 1];
+      const out = 1 - smooth(0.64, 0.8, d), a0 = photo ? smooth(0, 0.08, d) : 1;
+      L.musSup = [a0 * (1 - 0.68 * smooth(0.26, 0.42, d)) * out, smooth(0.26, 0.42, d)];
+      L.shell = [a0 * (1 - smooth(0.2, 0.34, d)), 0];
       L.musDeep = [smooth(0.14, 0.28, d) * (1 - 0.62 * smooth(0.46, 0.6, d)) * out, smooth(0.46, 0.6, d)];
-      L.bone = [smooth(0.3, 0.44, d), 0];
+      L.bone = [1, 0];
       L.organ = [smooth(0.36, 0.5, d), 0];
       L.cns = [smooth(0.36, 0.5, d), 0];
       const v = smooth(0.36, 0.5, d) * (1 - smooth(0.82, 0.96, d));
@@ -99,8 +100,8 @@ function layerPlan() {
     }
     case 'huesos': L.bone = [1, 0]; break;
     case 'organos': L.organ = [1, 0]; L.cns = [1, 0]; L.bone = [0.5, 1]; break;
-    case 'irrigacion': L.art = [S.art ? 1 : 0, 0]; L.ven = [S.ven ? 1 : 0, 0]; L.organ = [0.45, 1]; L.cns = [0.35, 1]; L.bone = [0.4, 1]; break;
-    case 'inervacion': L.nerve = [1, 0]; L.cns = [1, 0]; L.bone = [0.4, 1]; L.organ = [0.28, 1]; break;
+    case 'irrigacion': L.art = [S.art ? 1 : 0, 0]; L.ven = [S.ven ? 1 : 0, 0]; L.organ = [0.42, 1]; L.cns = [0.35, 1]; L.bone = [0.3, 1]; break;
+    case 'inervacion': L.nerve = [1, 0]; L.cns = [1, 0]; L.bone = [0.3, 1]; L.organ = [0.22, 1]; break;
   }
   return L;
 }
@@ -243,7 +244,7 @@ function updateLabels() {
   };
   if (S.sel) {
     const mine = items.filter((it) => it.sid === S.sel.sid).sort((a, b) => (b.side === S.sel.side) - (a.side === S.sel.side) || b.n - a.n);
-    if (mine.length) put(mine[0], true);
+    if (mine.length) { put(mine[0], true); keepInView(mine[0]); }
     else {
       const an = ANCH.get(S.sel.sid * 2 + S.sel.side) || ANCH.get(S.sel.sid * 2 + (1 - S.sel.side));
       const q = an && view.project(an.p, an.w);
@@ -261,10 +262,22 @@ function updateLabels() {
   }
 }
 
+// Desplaza la vista para que la estructura elegida no quede tapada por la ficha
+function keepInView(it) {
+  if (S.keptSel === S.sel.sid + ':' + S.sel.side) return;
+  S.keptSel = S.sel.sid + ':' + S.sel.side;
+  const ins = insets(), top = ins.top + 40, bottom = innerHeight - ins.bottom - 16;
+  let dy = 0;
+  if (it.y > bottom) dy = it.y - bottom + 30; else if (it.y < top) dy = it.y - top - 30;
+  if (!dy) return;
+  if (S.mode === 'demo') S.dpanY -= dy; else if (S.scale) S.panY += dy / S.scale;
+  S.dirty = true; needLabels = true;
+}
+
 // ---------------------------------------------------------------- selección y ficha
 const card = $('#card');
 function select(sid, side = 0, o = {}) {
-  S.sel = sid ? { sid, side } : null;
+  S.sel = sid ? { sid, side } : null; S.keptSel = null;
   view.setStructureState((e) => ({ hi: e.sid === sid }));
   view.shared.uniforms.uFocus.value = sid ? 0.5 : 0;
   if (sid) {
@@ -366,8 +379,8 @@ function setView(id, keepSel = false) {
   $('#vesselBox').hidden = id !== 'irrigacion';
   const note = $('#viewNote');
   const notes = {
-    irrigacion: 'Rojo: arterias (sangre oxigenada) · Azul: venas. Las arterias pulmonares van en azul y las venas pulmonares en rojo.',
-    inervacion: 'Amarillo: nervios · Rosado: encéfalo, médula espinal y cola de caballo.',
+    irrigacion: 'Rojo: arterias · Azul: venas · En los pulmones los colores se invierten.',
+    inervacion: 'Amarillo: nervios · Rosado: encéfalo y médula espinal.',
     organos: 'Órganos del tórax, el abdomen y la pelvis, con el encéfalo.',
   };
   note.textContent = notes[id] || ''; note.hidden = !notes[id];
@@ -716,6 +729,7 @@ async function boot() {
   setLoading('Cargando el modelo anatómico…', 0.02);
   let buf;
   try {
+    if (window.__MARY_READY) await window.__MARY_READY; // versión de un solo archivo
     const url = (window.__MARY_ASSETS && window.__MARY_ASSETS['anatomy.bin']) || './anatomy.bin';
     buf = await fetchAnatomy(url, (f) => setLoading('Cargando el modelo anatómico…', 0.05 + f * 0.85));
     view.build(buf);
@@ -724,6 +738,7 @@ async function boot() {
     setLoading('No se pudo cargar el modelo. Revisa la conexión y recarga la página.', 0);
     return;
   }
+  if (window.__MARY_ASSETS) { const dl = $('#dl'); if (dl) dl.parentNode.removeChild(dl); }
   for (const a of view.anchors) { ANCH.set(a.sid * 2 + a.side, a); if (!LAYER_OF.has(a.sid)) LAYER_OF.set(a.sid, a.layer); }
   buildViews();
   S.depth = 0.2; applyLayers();

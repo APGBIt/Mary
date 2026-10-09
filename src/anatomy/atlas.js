@@ -2,6 +2,7 @@
 // que el horneado escribe en cada vértice; la app lo usa para mostrar la ficha al tocar.
 // Enlaces: n = nervios, a = arterias, v = venas (ids de este mismo atlas).
 import { addSistemas } from './atlas_sistemas.js';
+import { addMas, LINKS_MAS } from './atlas_mas.js';
 
 export const CATS = {
   hueso: { label: 'Hueso', color: '#d9c9a8' },
@@ -160,6 +161,12 @@ add('piel', 'piel', 'Piel', 'El órgano más grande del cuerpo: protege, regula 
 add('musculo', 'tejido_profundo', 'Planos musculares profundos', 'Masa de músculos profundos que queda bajo los músculos superficiales: rotadores, intercostales, músculos de la columna y del suelo pélvico.', { deep: true });
 
 addSistemas(add);
+addMas(add);
+// enlaces añadidos en la versión 4.3 sobre fichas existentes
+for (const e of E) {
+  const extra = LINKS_MAS[e.id]; if (!extra) continue;
+  for (const k of ['n', 'a', 'v']) if (extra[k]) e[k] = [...new Set([...(e[k] || []), ...extra[k]])];
+}
 export const ATLAS = E;
 export const SID = {};
 ATLAS.forEach((e, i) => { e.sid = i + 1; SID[e.id] = i + 1; });

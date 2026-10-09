@@ -264,6 +264,15 @@ export function buildOrgans() {
     d = smin(d, sdRoundCone(x, y, z, [0, -2.2, 3.4], [0, -4.0, 3.9], 0.9, 0.45), 0.6);
     return d;
   }, [-4.0, -4.8, -0.2], [4.0, 2.6, 7.0], 0.1, { w: W, sid: S('vejiga'), tris: 4000, label: 'vejiga' });
+  // Lengua: cuerpo aplanado dentro de la arcada inferior y raíz hacia el hioides, con surco medio
+  addSDF(g, (x, y, z) => {
+    let d = sdEllipsoid(x, y, z, 0, 61.35, 5.7, 2.05, 0.95, 2.65);
+    d = smin(d, sdEllipsoid(x, y, z, 0, 60.45, 3.7, 1.75, 1.45, 1.35), 1.0);
+    d = smin(d, sdRoundCone(x, y, z, [0, 59.9, 3.6], [0, 58.4, 3.9], 0.9, 0.55), 0.6);
+    d = smax(d, y - 62.15, 0.35);
+    d = smax(d, -sdCapsule(x, y, z, [0, 62.35, 7.6], [0, 62.2, 4.2], 0.28), 0.18); // surco medio
+    return d + 0.025 * noise3(x * 5, y * 5, z * 5);
+  }, [-2.6, 57.4, 2.0], [2.6, 62.6, 8.8], 0.07, { w: rigid('head'), sid: S('lengua'), tris: 4000, label: 'lengua' });
   // Ojos
   addSDF(g, eyeSDF, [-4.8, 68.5, 7.2], [4.8, 71.7, 10.4], 0.045, { w: rigid('head'), sid: S('ojos'), aux: eyeAux, tris: 3000, label: 'ojos' });
   return g;

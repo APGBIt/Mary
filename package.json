@@ -1,7 +1,7 @@
 {
   "name": "mary",
   "private": true,
-  "version": "4.0.0",
+  "version": "4.3.0",
   "description": "Mary: anatomía humana en realidad aumentada",
   "type": "module",
   "scripts": {

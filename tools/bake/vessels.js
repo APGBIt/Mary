@@ -3,6 +3,7 @@
 import { Geo } from './builder.js';
 import { A, Lg, WT, WH, WHEAD, WA, WL, rigid, SK, onBrain, HE, tube, ribPath, fingerPath, add, madd, norm } from './paths.js';
 import { AORTA_ASC, AORTA_ARCH, AORTA_DESC, AORTA_ABD, SVC, IVC } from './viscera.js';
+import { VERT } from './body.js';
 
 // ================================================================ ARTERIAS
 export function buildArteries() {
@@ -126,8 +127,41 @@ export function buildArteries() {
   tube(L, 'arcos_palmares', [A(2.22, 70, 0.3), A(2.28, 20, 0.22), A(2.28, -30, 0.22), A(2.24, -60, 0.3)], 0.11, WA);
   for (let k = 1; k <= 4; k++) { const f = fingerPath(k, 0.5, 0, 0.55); tube(L, 'arcos_palmares', [A(2.47, [36, 8, -18, -42][k - 1], 0.58), ...f], [0.1, 0.07], WA, { minR: 0.08 }); }
   tube(L, 'arcos_palmares', [A(2.22, 70, 0.3), ...fingerPath(0, 0.45, 0, 0.4)], [0.1, 0.07], WA, { minR: 0.08 });
+  extraArteries(g, L);
   g.append(L.withMirror());
   return g;
+}
+
+// ---------------------------------------------------------------- versión 4.3: más arterias
+function extraArteries(g, L) {
+  // tronco tirocervical: tiroidea inferior, supraescapular y transversa del cuello
+  const TC = [4.6, 50.3, 0.7];
+  tube(L, 'tronco_tirocervical', [[4.5, 49.05, 0.5], TC], 0.26, WT);
+  tube(L, 'tronco_tirocervical', [TC, [4.4, 51.6, 0.4], [3.6, 52.4, 0.0], [2.6, 52.1, 0.8], [2.0, 51.9, 1.4]], [0.18, 0.13], WT);
+  tube(L, 'tronco_tirocervical', [TC, [6.4, 50.1, 0.4], [9.0, 49.7, -1.0], [11.4, 48.3, -3.6], [12.4, 46.6, -5.6], [12.6, 44.0, -7.8]], [0.16, 0.12], WT);
+  tube(L, 'tronco_tirocervical', [[4.7, 50.6, 0.6], [6.6, 51.4, -1.2], [8.4, 51.0, -3.8], [8.7, 49.0, -6.6], [7.8, 45.0, -9.2], [7.5, 40.0, -9.9]], [0.15, 0.11], WT);
+  // arteria oftálmica (con la central de la retina y la supraorbitaria)
+  tube(L, 'a_oftalmica', [[1.4, 68.9, 1.9], [1.9, 69.5, 3.0], [2.4, 69.85, 4.6], [2.75, 70.5, 6.0], [2.45, 71.0, 7.4], [2.25, 71.7, 8.5], SK(2.35, 73.4, 9.0, 0.35), SK(2.6, 75.6, 8.4, 0.35)], [0.12, 0.08], WHEAD, { minR: 0.08 });
+  tube(L, 'a_oftalmica', [[2.75, 70.5, 6.0], [3.05, 70.25, 7.0], [3.2, 70.15, 7.55]], 0.08, WHEAD, { minR: 0.08 });
+  // arteria meníngea media (por dentro del cráneo, sobre la duramadre)
+  const MM = onBrain([6.0, 70.8, 2.2], 0.32);
+  tube(L, 'a_meningea_media', [[5.0, 65.7, 2.0], [4.3, 67.3, 1.0], [5.3, 68.7, 1.5], MM], 0.13, WHEAD);
+  tube(L, 'a_meningea_media', [MM, onBrain([6.1, 73.0, 2.8], 0.32), onBrain([5.6, 76.0, 3.4], 0.32), onBrain([4.4, 79.0, 3.0], 0.32)], [0.12, 0.08], WHEAD, { minR: 0.08 });
+  tube(L, 'a_meningea_media', [MM, onBrain([6.3, 71.8, -0.8], 0.32), onBrain([6.0, 74.2, -3.8], 0.32), onBrain([5.0, 77.0, -6.0], 0.32)], [0.11, 0.08], WHEAD, { minR: 0.08 });
+  // arterias lumbares (L1–L4), a ambos lados de la aorta
+  const aortaZ = (y) => (y > 22 ? -0.6 - (y - 22) * 0.32 : y > 18.8 ? 0.2 - (y - 18.8) * 0.25 : 0.2 + (18.8 - y) * 0.13);
+  for (const v of VERT.filter((q) => q.name[0] === 'L' && q.name !== 'L5')) {
+    for (const s of [1, -1]) {
+      const y = v.y, z0 = aortaZ(y);
+      const P = [[0.6 + s * 0.55, y, z0 - 0.75], [s * v.rx * 0.85, y - 0.1, v.z + v.rz * 0.7], [s * (v.rx + 0.45), y - 0.2, v.z - v.rz * 0.1], [s * (v.rx + 1.5), y - 0.4, v.z - v.rz - 0.9], [s * (v.rx + 2.4), y - 0.8, v.z - v.rz - 3.2]];
+      tube(g, 'a_lumbares', P, [0.17, 0.12], WT, { side: s < 0 ? 1 : 0 });
+      tube(g, 'a_lumbares', [P[2], [s * (v.rx + 3.6), y - 0.5, v.z - 0.4], [s * (v.rx + 6.6), y - 1.0, v.z - 0.8], [s * (v.rx + 9.0), y - 1.6, v.z + 0.6]], [0.12, 0.09], WT, { side: s < 0 ? 1 : 0, minR: 0.09 });
+    }
+  }
+  // arterias gonadales
+  const gon = (s) => [[s * 2.6, 15.0, 1.45], [s * 3.8, 11.6, 1.85], [s * 4.8, 8.6, 2.65], [s * 5.6, 6.4, 3.6], [s * 6.0, 5.0, 5.0]];
+  tube(g, 'a_gonadales', [[1.05, 18.6, 1.0], [1.7, 17.6, 1.4], ...gon(1)], 0.11, WT);
+  tube(g, 'a_gonadales', [[0.25, 18.6, 1.05], [-1.2, 17.6, 1.75], ...gon(-1)], 0.11, WT, { side: 1 });
 }
 
 // ================================================================ VENAS
@@ -197,6 +231,36 @@ export function buildVeins() {
   tube(L, 'v_mediana_cubital', [A(1.1, 46, 1.02), A(1.03, 0, 1.03), A(0.95, -52, 1.02)], 0.21, WA);
   tube(L, 'red_venosa_mano', [A(2.05, 112, 1.0), A(2.42, 150, 1.0), A(2.46, 180, 1.0), A(2.42, -150, 1.0), A(2.05, -112, 1.0)], 0.15, WA);
   for (let k = 1; k <= 4; k++) { const f = fingerPath(k, -0.55, 0, 0.6).slice(0, 3); tube(L, 'red_venosa_mano', [A(2.44, [152, 172, -170, -154][k - 1], 1.0), ...f], [0.12, 0.08], WA, { minR: 0.08 }); }
+  extraVeins(g, L);
   g.append(L.withMirror());
   return g;
+}
+
+// ---------------------------------------------------------------- versión 4.3: más venas
+function extraVeins(g, L) {
+  // venas del corazón: cardíaca mayor, seno coronario y cardíaca media
+  const H = (x, y, z) => HE(x, y, z, 0.24);
+  tube(g, 'v_cardiacas', [H(6.4, 33.0, 7.2), H(5.2, 35.2, 7.9), H(3.9, 37.2, 7.4), H(3.0, 38.4, 6.0), H(4.3, 38.6, 3.6), H(5.8, 37.4, 1.6), H(6.0, 35.6, 0.0), H(4.4, 34.2, -1.0)], [0.14, 0.22], WT);
+  tube(g, 'v_cardiacas', [H(4.4, 34.2, -1.0), H(2.0, 33.6, -1.0), H(-0.4, 33.8, -0.4), [-1.9, 34.6, 0.6]], [0.24, 0.32], WT);
+  tube(g, 'v_cardiacas', [H(4.6, 31.8, 3.6), H(2.8, 31.95, 1.4), H(1.0, 32.6, -0.4), H(0.4, 33.4, -0.7)], [0.11, 0.17], WT);
+  // venas tiroideas (superior, media e inferior)
+  tube(L, 'v_tiroideas', [[1.9, 53.6, 2.3], [2.9, 54.2, 2.2], [3.75, 54.6, 1.6]], [0.11, 0.15], WT);
+  tube(L, 'v_tiroideas', [[2.6, 52.2, 2.25], [3.3, 52.4, 2.0], [3.8, 52.6, 1.75]], [0.11, 0.14], WT);
+  tube(L, 'v_tiroideas', [[1.2, 50.9, 2.7], [1.0, 49.4, 3.0], [1.1, 48.0, 3.1], [1.4, 46.9, 3.15]], [0.12, 0.16], WT);
+  // yugulares anteriores y arco venoso yugular
+  tube(L, 'v_yugular_anterior', [[1.3, 58.6, 4.4], [1.55, 56.0, 4.9], [1.8, 52.6, 5.25], [2.1, 50.0, 5.6], [3.4, 49.0, 4.8], [5.2, 48.7, 2.8], [6.1, 48.9, 1.5]], [0.12, 0.17], WT);
+  tube(g, 'v_yugular_anterior', [[-2.0, 49.7, 5.7], [0, 49.4, 6.1], [2.0, 49.7, 5.7]], 0.13, WT);
+  // venas gonadales: la izquierda a la renal izquierda, la derecha a la cava
+  const gon = (s) => [[s * 3.05, 15.0, 1.8], [s * 4.1, 11.6, 2.2], [s * 5.1, 8.6, 3.0], [s * 5.8, 6.4, 3.9], [s * 6.2, 5.0, 5.3]];
+  tube(g, 'v_gonadales', [[2.5, 20.1, -1.3], [2.8, 18.0, 0.6], ...gon(1)], [0.17, 0.12], WT);
+  tube(g, 'v_gonadales', [[-2.35, 17.6, 0.25], [-2.7, 16.4, 1.2], ...gon(-1)], [0.15, 0.12], WT, { side: 1 });
+  // lumbares ascendentes (continúan como ácigos y hemiácigos) y lumbares transversas
+  for (const s of [1, -1]) {
+    tube(g, 'v_lumbares', [[s * 3.6, 8.4, -2.6], [s * 3.5, 12.0, -3.5], [s * 3.4, 15.6, -3.6], [s * 3.2, 18.6, -3.9], [s * 2.5, 20.8, -3.4], [s * 1.4, 22.0, -2.6]], 0.16, WT, { side: s < 0 ? 1 : 0 });
+    for (const v of VERT.filter((q) => q.name[0] === 'L' && q.name !== 'L5')) {
+      const y = v.y + 0.55;
+      const P = s < 0 ? [[-3.45, y, v.z - 0.9], [-(v.rx + 0.4), y + 0.1, v.z + 0.2], [-2.4, y + 0.25, v.z + v.rz + 0.9]] : [[3.45, y, v.z - 0.9], [v.rx + 0.4, y + 0.1, v.z + 0.2], [1.3, y + 0.25, v.z + v.rz + 0.35], [-1.4, y + 0.35, v.z + v.rz + 0.45]];
+      tube(g, 'v_lumbares', P, 0.14, WT, { side: s < 0 ? 1 : 0 });
+    }
+  }
 }

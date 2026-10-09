@@ -63,7 +63,9 @@ function territoryOf(e) {
   let kind;
   if (e.cat === 'nervio' || e.cat === 'arteria' || e.cat === 'vena') {
     kind = { nervio: 'n', arteria: 'a', vena: 'v' }[e.cat];
-    for (const x of REV.get(e.id) || []) if (x.key === kind && TERRITORY_CATS.includes(x.e.cat) && LAYERS_OF.has(x.e.sid)) set.set(x.e.sid, TINT[kind]);
+    // en el sistema nervioso central los nervios figuran como "los que nacen de él", no como inervación
+    const cats = kind === 'n' ? TERRITORY_CATS.filter((c) => c !== 'snc') : TERRITORY_CATS;
+    for (const x of REV.get(e.id) || []) if (x.key === kind && cats.includes(x.e.cat) && LAYERS_OF.has(x.e.sid)) set.set(x.e.sid, TINT[kind]);
   } else {
     kind = 'm';
     for (const key of ['n', 'a', 'v']) for (const id of e[key] || []) { const s = SID[id]; if (s && LAYERS_OF.has(s)) set.set(s, TINT[key]); }

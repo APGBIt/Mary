@@ -1,7 +1,7 @@
 // Inervación de Mary: sistema nervioso central (capa "cns": encéfalo, cerebelo, tronco encefálico,
 // médula y cola de caballo) y nervios periféricos (capa "nerve"). Lado izquierdo con +x; los pares se reflejan.
 import { Geo, addSDF } from './builder.js';
-import { headW, trunkW, VERT, canalAt } from './body.js';
+import { headW, trunkW, VERT, canalAt, torsoPt } from './body.js';
 import { sdEllipsoid, sdCapsule, smin, smax, noise3 } from './sdf.js';
 import { tubeSDF, ESOPH } from './viscera.js';
 import { A, Lg, WT, WH, WHEAD, WA, WL, SK, HE, tube, ribPath, fingerPath, add, madd, clamp } from './paths.js';
@@ -208,7 +208,71 @@ export function buildNerves() {
   tube(L, 'n_plantares', [[7.5, -82.4, -1.6], [7.8, -85.6, 1.6], [7.8, -86.4, 6.6], [7.6, -86.6, 11.2]], 0.12, WL);
   tube(L, 'n_plantares', [[7.5, -82.4, -1.6], [9.6, -86.0, 2.0], [11.2, -86.2, 6.0], [12.0, -86.4, 10.4]], 0.12, WL);
   for (const x of [8.8, 9.9]) tube(L, 'n_plantares', [[7.8, -86.4, 6.6], [x, -86.8, 11.0]], 0.09, WL);
+  extraNerves(g, L);
   g.append(L.withMirror());
   return g;
+}
+
+// ------------------------------------------------------------ versión 4.3: más pares craneales, plexo cervical,
+// pudendo, genitofemoral, cutáneos y plexos autónomos
+const SURF = (y, th, d = 0.45) => torsoPt(y, th, d); // punto bajo la piel del cuello y del tronco
+const out = (f) => [f[0] + 1.5, f[1] - 0.5, f[2] + 0.5];
+function extraNerves(g, L) {
+  // pares craneales (lado izquierdo; se reflejan)
+  tube(L, 'n_olfatorio', [[0.5, 70.75, 7.4], [0.55, 70.7, 6.2], [0.8, 70.6, 4.6], [1.4, 70.4, 3.0]], [0.3, 0.24, 0.15, 0.13], WHEAD);
+  tube(L, 'n_oculomotor', [[0.45, 70.0, -0.2], [1.2, 69.95, 0.8], [2.0, 69.8, 2.4], [2.7, 69.7, 4.5], [3.0, 69.6, 6.0]], 0.15, WHEAD);
+  tube(L, 'n_oculomotor', [[3.0, 69.6, 6.0], [3.3, 70.5, 6.6], [3.25, 71.05, 7.4]], 0.1, WHEAD);
+  tube(L, 'n_oculomotor', [[3.0, 69.6, 6.0], [3.05, 69.2, 6.9], [3.1, 69.05, 7.6]], 0.1, WHEAD);
+  tube(L, 'n_troclear', [[0.55, 70.35, -2.6], [1.45, 70.1, -1.4], [2.05, 70.3, 0.8], [2.45, 70.55, 3.0], [2.85, 70.95, 5.0], [2.85, 71.3, 7.0]], 0.08, WHEAD, { minR: 0.08 });
+  tube(L, 'n_abducens', [[0.35, 67.9, -0.5], [0.9, 68.8, 0.4], [1.8, 69.35, 2.0], [2.65, 69.55, 4.2], [3.5, 69.8, 5.8], [4.3, 70.0, 7.4]], 0.11, WHEAD);
+  tube(L, 'n_vestibulococlear', [[1.35, 67.7, -1.5], [2.6, 67.75, -1.3], [3.6, 67.8, -1.15], [4.45, 67.85, -1.0]], [0.2, 0.17], WHEAD);
+  addSDF(L, (x, y, z) => smin(sdEllipsoid(x, y, z, 4.85, 67.8, -0.75, 0.42, 0.36, 0.36), sdEllipsoid(x, y, z, 5.15, 68.05, -1.25, 0.32, 0.42, 0.3), 0.2),
+    [4.2, 67.2, -1.8], [5.7, 68.7, -0.2], 0.05, { w: () => headW(), sid: S('n_vestibulococlear'), tris: 500 }); // oído interno
+  tube(L, 'n_glosofaringeo', [[1.05, 66.9, -1.9], [3.0, 66.3, -1.25], [3.7, 64.6, 0.2], [3.6, 62.8, 1.2], [2.6, 61.9, 2.4], [1.5, 61.7, 3.4]], 0.12, WH);
+  tube(L, 'n_hipogloso', [[0.75, 66.2, -1.6], [2.0, 65.6, -2.4], [3.2, 64.6, -1.8], [3.85, 62.6, -0.6], [4.7, 60.7, 1.6], [3.9, 59.7, 3.4], [2.5, 59.7, 4.5], [1.2, 60.4, 5.3]], [0.15, 0.13], WH);
+  // plexo cervical: raíces C2–C4, punto de Erb y ramas cutáneas; asa cervical
+  const ERB = [5.25, 57.4, -1.8];
+  for (const [r, mid] of [['C2', [4.3, 61.0, -1.0]], ['C3', [4.6, 59.0, -1.5]], ['C4', [4.8, 57.6, -1.9]]]) tube(L, 'plexo_cervical', [out(F[r]), mid, ERB], 0.14, WH);
+  tube(L, 'plexo_cervical', [ERB, [5.75, 59.6, -1.0], [5.95, 62.3, -0.4], [6.35, 64.7, 0.0], [7.0, 66.0, 0.1]], 0.1, WH); // auricular mayor
+  tube(L, 'plexo_cervical', [ERB, [5.45, 60.0, -2.8], [5.2, 62.8, -4.0], SK(4.9, 66.4, -5.6, 0.45), SK(4.4, 68.6, -6.6, 0.45)], 0.09, WH); // occipital menor
+  tube(L, 'plexo_cervical', [ERB, SURF(57.1, 100), SURF(56.9, 72), SURF(56.7, 45), SURF(56.5, 20)], 0.09, WT); // transverso del cuello
+  tube(L, 'plexo_cervical', [ERB, [5.6, 55.4, -1.0], SURF(53.6, 80, 0.5)], 0.11, WT); // tronco supraclavicular
+  const SC = SURF(53.6, 80, 0.5);
+  for (const pts of [[SURF(51.8, 50), SURF(49.2, 30), SURF(46.8, 20)], [SURF(51.8, 66), SURF(49.2, 52), SURF(46.4, 44)], [SURF(52.6, 86), SURF(51.0, 88), SURF(49.6, 88)]]) tube(L, 'plexo_cervical', [SC, ...pts], 0.08, WT, { minR: 0.08 });
+  tube(L, 'plexo_cervical', [[3.85, 61.3, 0.2], [3.4, 59.6, 2.0], [3.05, 57.0, 2.35], [2.9, 54.2, 2.35], [3.6, 54.6, 1.6], [4.3, 56.6, 0.2], [4.3, 58.6, -0.8], [4.4, 60.2, -1.0]], 0.08, WT, { minR: 0.08 }); // asa cervical
+  for (const t of [[1.9, 55.6, 3.5], [1.7, 52.6, 3.6]]) tube(L, 'plexo_cervical', [[2.95, 55.0, 2.35], t], 0.07, WT, { minR: 0.07 });
+  // nervio pudendo y sus ramas
+  const PU = [5.0, 2.4, -7.5];
+  for (const r of ['S2', 'S3', 'S4']) tube(L, 'n_pudendo', [F[r], [(F[r][0] + PU[0]) / 2 + 0.5, (F[r][1] + PU[1]) / 2, (F[r][2] + PU[2]) / 2 - 0.2], PU], 0.1, WL);
+  const PU2 = [3.6, -6.6, -1.4];
+  tube(L, 'n_pudendo', [PU, [6.3, 0.6, -7.7], [5.75, -1.9, -7.0], [5.2, -4.0, -5.3], [4.6, -5.6, -3.4], PU2], 0.14, WL);
+  tube(L, 'n_pudendo', [[4.9, -5.0, -4.2], [3.0, -6.6, -5.4], [1.2, -7.4, -6.6]], 0.09, WL); // rectal inferior
+  tube(L, 'n_pudendo', [PU2, [2.4, -7.6, 1.2], [1.1, -7.5, 3.4]], 0.09, WL); // perineal
+  tube(L, 'n_pudendo', [PU2, [2.3, -6.0, 3.4], [1.1, -4.9, 6.6], [0.45, -5.2, 8.6]], 0.09, WL); // dorsal
+  // genitofemoral (atraviesa el psoas)
+  const GF = [6.15, 6.5, 3.0];
+  tube(L, 'n_genitofemoral', [[4.1, 18.6, -2.6], [4.55, 15.2, 0.95], [5.4, 11.0, 2.05], [5.95, 7.6, 2.75], GF], 0.11, WL);
+  tube(L, 'n_genitofemoral', [GF, [6.0, 5.0, 5.4], [5.0, 3.2, 7.0], [3.6, 1.0, 7.6], [2.6, -1.0, 7.5]], 0.08, WL, { minR: 0.08 });
+  tube(L, 'n_genitofemoral', [GF, [6.7, 4.4, 4.8], [6.55, 3.0, 7.05], Lg(0.07, -30, 0.98), Lg(0.15, -35, 0.995)], 0.08, WL, { minR: 0.08 });
+  // cutáneo femoral posterior
+  tube(L, 'n_cutaneo_femoral_posterior', [[6.4, 2.0, -7.6], [7.7, -1.0, -8.8], [8.6, -5.0, -9.6], Lg(0.12, 178, 0.93), Lg(0.35, 180, 0.96), Lg(0.6, 180, 0.97), Lg(0.85, 180, 0.98), Lg(0.97, 182, 0.98)], 0.1, WL);
+  // cutáneos mediales del brazo y del antebrazo
+  tube(L, 'n_cutaneos_mediales', [[12.3, 44.4, 0.7], [13.7, 43.5, 0.1], A(0.15, -102, 0.86), A(0.4, -102, 0.95), A(0.7, -96, 0.985), A(0.95, -82, 0.995), A(1.3, -70, 1.0), A(1.7, -78, 1.0), A(1.95, -84, 1.0)], 0.1, WA);
+  tube(L, 'n_cutaneos_mediales', [A(0.95, -82, 0.995), A(1.4, -104, 1.0), A(1.85, -112, 1.0)], 0.08, WA, { minR: 0.08 });
+  tube(L, 'n_cutaneos_mediales', [A(0.3, -105, 0.92), A(0.5, -130, 0.98), A(0.75, -140, 1.0)], 0.08, WA, { minR: 0.08 }); // intercostobraquial / cutáneo medial del brazo
+  // plexos autónomos (simétricos: se dibujan una sola vez, sin reflejo)
+  const gang = (c, r) => addSDF(g, (x, y, z) => sdEllipsoid(x, y, z, c[0], c[1], c[2], r[0], r[1], r[2]) + 0.03 * noise3(x * 4, y * 4, z * 4), [c[0] - r[0] - 0.3, c[1] - r[1] - 0.3, c[2] - r[2] - 0.3], [c[0] + r[0] + 0.3, c[1] + r[1] + 0.3, c[2] + r[2] + 0.3], 0.06, { w: WT, sid: S('plexos_autonomicos'), tris: 400 });
+  gang([2.2, 23.5, 0.0], [0.55, 0.85, 0.38]); gang([-0.95, 23.3, 0.0], [0.55, 0.85, 0.38]); // ganglios celíacos
+  gang([0.6, 21.3, 0.6], [0.4, 0.4, 0.3]); // ganglio mesentérico superior
+  gang([0.55, 42.0, 0.3], [0.45, 0.35, 0.35]); // plexo cardíaco profundo
+  for (const P of [[[2.2, 23.5, 0.0], [0.7, 24.0, 0.3], [-0.95, 23.3, 0.0]], [[2.2, 23.0, 0.2], [1.4, 21.8, 0.6], [0.6, 21.3, 0.6]], [[-0.95, 22.9, 0.2], [-0.2, 21.8, 0.6], [0.6, 21.3, 0.6]],
+    [[1.6, 21.0, 0.9], [1.55, 18.8, 1.15], [1.45, 15.8, 1.6], [1.0, 13.2, 1.9]], [[-0.4, 21.0, 0.9], [-0.35, 18.8, 1.15], [-0.25, 15.8, 1.6], [0.1, 13.2, 1.9]],
+    [[1.55, 17.6, 1.3], [0.6, 16.9, 1.55], [-0.3, 17.6, 1.3]], [[1.45, 14.6, 1.7], [0.6, 14.0, 1.85], [-0.2, 14.6, 1.7]],
+    [[1.0, 13.2, 1.9], [0.5, 11.8, 1.5], [0.2, 10.4, 0.6], [0.0, 8.8, -0.6]], [[0.1, 13.2, 1.9], [0.5, 11.8, 1.5]],
+    [[0.0, 8.8, -0.6], [1.6, 7.6, -2.4], [3.0, 5.6, -3.6], [3.8, 3.0, -4.6], [3.6, 0.6, -4.8]], [[0.0, 8.8, -0.6], [-1.6, 7.6, -2.4], [-3.0, 5.6, -3.6], [-3.8, 3.0, -4.6], [-3.6, 0.6, -4.8]],
+    [[2.0, 24.4, -2.0], [2.2, 23.9, -0.6]], [[-0.4, 24.0, -2.0], [-0.95, 23.7, -0.6]],
+    [[3.3, 44.0, 0.2], [1.7, 42.8, 0.2], [0.55, 42.0, 0.3]], [[-2.1, 43.4, -1.6], [-0.8, 42.5, -0.4], [0.55, 42.0, 0.3]], [[0.55, 42.0, 0.3], [0.4, 40.8, 1.6], HE(0.6, 39.0, 3.6, 0.2), HE(1.8, 38.2, 5.4, 0.2)], [[0.55, 42.0, 0.3], [-0.8, 40.6, 1.0], HE(-1.4, 38.4, 3.6, 0.2)]]) {
+    tube(g, 'plexos_autonomicos', P, 0.08, WT, { minR: 0.08 });
+  }
 }
 void ESOPH;

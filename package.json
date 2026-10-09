@@ -1,0 +1,22 @@
+{
+  "name": "mary",
+  "private": true,
+  "version": "4.0.0",
+  "description": "Mary: anatomía humana en realidad aumentada",
+  "type": "module",
+  "scripts": {
+    "postinstall": "node tools/copy-mediapipe.mjs",
+    "dev": "vite",
+    "bake": "node tools/bake/bake.mjs",
+    "build": "vite build",
+    "preview": "vite preview --outDir docs"
+  },
+  "dependencies": {
+    "@mediapipe/pose": "^0.5.1675469404",
+    "three": "^0.186.1"
+  },
+  "devDependencies": {
+    "meshoptimizer": "^1.3.0",
+    "vite": "^8.3.4"
+  }
+}
